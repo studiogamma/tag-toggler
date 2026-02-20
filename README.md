@@ -23,6 +23,4 @@ This plugin modifies the tag syntax within your files (e.g., changing `#tag` to 
 
 ## ☕ Support
 
-If you find this plugin helpful, consider supporting the developer:
-
-[![Buy Me a Coffee](https://img.shields.io/badge/Buy%20Me%20a%20Coffee-Donate-orange?style=flat-square&logo=buy-me-a-coffee)](https://ko-fi.com/studiogamma)
+If you find this plugin helpful, consider [supporting the developer](https://ko-fi.com/studiogamma).
