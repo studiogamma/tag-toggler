@@ -438,7 +438,7 @@ var TagToggleModal = class extends obsidian.Modal {
         new TagInputSuggest(this.app, tagInput);
 
 
-        // Button row: [Hide] [Unhide] [Unhide All]
+        // Button row: [Hide] [Unhide]
         var buttonRow = contentEl.createDiv({ cls: "tag-toggler-button-row" });
 
         var hideBtn = buttonRow.createEl("button", {
@@ -449,11 +449,6 @@ var TagToggleModal = class extends obsidian.Modal {
         var unhideBtn = buttonRow.createEl("button", {
             text: "Unhide",
             cls: "tag-toggler-unhide-btn"
-        });
-
-        var unhideAllBtn = buttonRow.createEl("button", {
-            text: "Unhide All",
-            cls: "tag-toggler-unhide-all-btn"
         });
 
         // Status area
@@ -469,7 +464,6 @@ var TagToggleModal = class extends obsidian.Modal {
             }
             hideBtn.disabled = true;
             unhideBtn.disabled = true;
-            unhideAllBtn.disabled = true;
             statusEl.setText("Hiding #" + tag + " across vault...");
 
             var result = await toggleTagInVault(
@@ -491,7 +485,6 @@ var TagToggleModal = class extends obsidian.Modal {
             }
             hideBtn.disabled = false;
             unhideBtn.disabled = false;
-            unhideAllBtn.disabled = false;
         });
 
         // ── Unhide handler ──
@@ -503,7 +496,6 @@ var TagToggleModal = class extends obsidian.Modal {
             }
             hideBtn.disabled = true;
             unhideBtn.disabled = true;
-            unhideAllBtn.disabled = true;
             var prefix = self.plugin.settings.prefixSymbol;
             statusEl.setText("Unhiding " + prefix + "#" + tag + " across vault...");
 
@@ -526,31 +518,6 @@ var TagToggleModal = class extends obsidian.Modal {
             }
             hideBtn.disabled = false;
             unhideBtn.disabled = false;
-            unhideAllBtn.disabled = false;
-        });
-
-        // ── Unhide All handler ──
-        unhideAllBtn.addEventListener("click", async function () {
-            hideBtn.disabled = true;
-            unhideBtn.disabled = true;
-            unhideAllBtn.disabled = true;
-            statusEl.setText("Restoring all hidden tags across vault...");
-
-            var result = await unhideAllInVault(self.app, self.plugin.settings.prefixSymbol);
-
-            var parts = [];
-            if (result.bodyTags > 0) parts.push("Body: " + result.bodyTags + " tag(s) in " + result.bodyFiles + " file(s)");
-            if (result.fmTags > 0) parts.push("Frontmatter: " + result.fmTags + " tag(s) restored in " + result.fmFiles + " file(s)");
-            if (parts.length > 0) {
-                var msg = "Unhide All complete. " + parts.join(". ") + ".";
-                statusEl.setText(msg);
-                new obsidian.Notice(msg);
-            } else {
-                statusEl.setText("No hidden tags found in the vault.");
-            }
-            hideBtn.disabled = false;
-            unhideBtn.disabled = false;
-            unhideAllBtn.disabled = false;
         });
     }
 

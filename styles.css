@@ -3,7 +3,7 @@
 .tag-toggler-modal .modal-content {
 	display: flex;
 	flex-direction: column;
-	gap: 2px;
+	gap: 0px;
 }
 
 .tag-toggler-input-row {
