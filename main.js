@@ -69,9 +69,9 @@ async function toggleTagInBody(app, tag, hide, prefix) {
 
     var regex;
     if (hide) {
-        regex = new RegExp("(^|\\s)#(" + escapedTag + ")(?=\\s|$|[^a-zA-Z0-9_/])", "gm");
+        regex = new RegExp("(^|\\s)#(" + escapedTag + "(?:/[a-zA-Z0-9_]+)*)(?=\\s|$|[^a-zA-Z0-9_/])", "gm");
     } else {
-        regex = new RegExp("(^|\\s)" + escapedPrefix + "#(" + escapedTag + ")(?=\\s|$|[^a-zA-Z0-9_/])", "gm");
+        regex = new RegExp("(^|\\s)" + escapedPrefix + "#(" + escapedTag + "(?:/[a-zA-Z0-9_]+)*)(?=\\s|$|[^a-zA-Z0-9_/])", "gm");
     }
 
     var filesModified = 0;
@@ -286,7 +286,6 @@ var TagInputSuggest = class extends obsidian.AbstractInputSuggest {
 
     selectSuggestion(tag) {
         this.inputEl.value = tag;
-        this.inputEl.dispatchEvent(new Event("input"));
         this.close();
     }
 };
@@ -435,7 +434,7 @@ var TagToggleModal = class extends obsidian.Modal {
         tagInput.id = "tag-toggler-tag-input";
 
         // Attach auto-suggest to the input (triggers on focus, not on open)
-        new TagInputSuggest(this.app, tagInput);
+        var suggest = new TagInputSuggest(this.app, tagInput);
 
 
         // Button row: [Hide] [Unhide]
@@ -449,6 +448,14 @@ var TagToggleModal = class extends obsidian.Modal {
         var unhideBtn = buttonRow.createEl("button", {
             text: "Unhide",
             cls: "tag-toggler-unhide-btn"
+        });
+
+        // Enter key: trigger Hide when input has a value and suggestions are closed
+        tagInput.addEventListener("keydown", function (e) {
+            if (e.key === "Enter" && tagInput.value.trim()) {
+                e.preventDefault();
+                hideBtn.click();
+            }
         });
 
         // Status area
