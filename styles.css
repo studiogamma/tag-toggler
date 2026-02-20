@@ -1,0 +1,100 @@
+/* Tag Toggler – Modal & Settings Styles */
+
+.tag-toggler-modal .modal-content {
+	display: flex;
+	flex-direction: column;
+	gap: 2px;
+}
+
+.tag-toggler-input-row {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+}
+
+.tag-toggler-input-row .tag-toggler-hash {
+	font-size: 1.2em;
+	font-weight: 600;
+	color: var(--text-accent);
+	user-select: none;
+}
+
+.tag-toggler-input-row input[type="text"] {
+	flex: 1;
+	padding: 8px 12px;
+	font-size: 1em;
+	border: 1px solid var(--background-modifier-border);
+	border-radius: 6px;
+	background: var(--background-primary);
+	color: var(--text-normal);
+}
+
+.tag-toggler-input-row input[type="text"]:focus {
+	border-color: var(--interactive-accent);
+	box-shadow: 0 0 0 2px rgba(var(--interactive-accent-rgb), 0.2);
+	outline: none;
+}
+
+.tag-toggler-button-row {
+	display: flex;
+	gap: 8px;
+	justify-content: flex-end;
+	margin-top: 11px;
+}
+
+.tag-toggler-button-row button {
+	padding: 8px 20px;
+	border-radius: 6px;
+	font-weight: 500;
+	cursor: pointer;
+	transition: background 0.15s ease;
+}
+
+.tag-toggler-button-row .tag-toggler-hide-btn {
+	background: var(--interactive-accent);
+	color: var(--text-on-accent);
+	border: none;
+}
+
+.tag-toggler-button-row .tag-toggler-hide-btn:hover {
+	filter: brightness(1.1);
+}
+
+.tag-toggler-button-row .tag-toggler-unhide-btn,
+.tag-toggler-button-row .tag-toggler-unhide-all-btn {
+	background: transparent;
+	color: var(--text-normal);
+	border: 1px solid var(--background-modifier-border);
+	min-width: 90px;
+}
+
+.tag-toggler-button-row .tag-toggler-unhide-btn:hover,
+.tag-toggler-button-row .tag-toggler-unhide-all-btn:hover {
+	background: var(--background-modifier-hover);
+}
+
+.tag-toggler-status {
+	font-size: 0.9em;
+	color: var(--text-muted);
+	min-height: 1.4em;
+	margin-top: 13px;
+}
+
+/* Settings tab warning */
+
+.tag-toggler-warning-message {
+	font-size: 0.95em;
+	color: var(--text-muted);
+	line-height: 1.5;
+	margin-bottom: 0px;
+}
+
+.tag-toggler-warning {
+	padding: 10px 14px;
+	border-left: 3px solid var(--text-warning);
+	background: rgba(var(--color-yellow-rgb), 0.08);
+	border-radius: 4px;
+	font-size: 0.9em;
+	color: var(--text-muted);
+	margin-top: 12px;
+}

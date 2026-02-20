@@ -1,0 +1,11 @@
+{
+	"id": "tag-toggler",
+	"name": "Tag Toggler",
+	"version": "1.0.0",
+	"minAppVersion": "0.15.0",
+	"description": "Hide specific tag nodes from Graph View by converting tags to plain text (e.g. #Year → —#Year). Unhide to restore them.",
+	"author": "Studio Gamma",
+	"authorUrl": "https://github.com/studiogamma",
+	"fundingUrl": "https://ko-fi.com/studiogamma",
+	"isDesktopOnly": false
+}
