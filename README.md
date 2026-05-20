@@ -12,6 +12,9 @@ https://github.com/user-attachments/assets/b62eca70-257d-4197-b38a-1664b9a5c3b3
 
 https://github.com/user-attachments/assets/87d1d6da-a2b4-40a6-b0a1-12ea459d10f9
 
+## Update (v 1.0 -> v 1.1)
+The backend logic has been optimized to handle large-scale vaults. The performance increased 3x faster (for vault with 1000 files).
+
 ## ⚙️ How It Works
 
 This plugin modifies the tag syntax within your files (e.g., changing `#tag` to a prefixed version like `—#tag`) so that Obsidian's graph engine no longer recognizes them as active tags. 

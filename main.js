@@ -62,51 +62,92 @@ function normaliseTags(value) {
     return [];
 }
 
+// ─── Utility: Batch Processor ────────────────────────────────────────
+async function processFilesBatched(files, processFn, batchSize = 50) {
+    var results = [];
+    for (var i = 0; i < files.length; i += batchSize) {
+        var batch = files.slice(i, i + batchSize);
+        var batchResults = await Promise.all(batch.map(processFn));
+        for (var j = 0; j < batchResults.length; j++) {
+            results.push(batchResults[j]);
+        }
+        await new Promise(function(resolve) { setTimeout(resolve, 0); });
+    }
+    return results;
+}
+
 // ─── Core: Toggle tags in document body ──────────────────────────────
 async function toggleTagInBody(app, tag, hide, prefix) {
     var escapedTag = escapeRegExp(tag);
     var escapedPrefix = escapeRegExp(prefix);
 
-    var regex;
+    var regexGlobal;
+    var regexTest;
     if (hide) {
-        regex = new RegExp("(^|\\s)#(" + escapedTag + "(?:/[a-zA-Z0-9_]+)*)(?=\\s|$|[^a-zA-Z0-9_/])", "gm");
+        regexGlobal = new RegExp("(^|\\s)#(" + escapedTag + "(?:/[a-zA-Z0-9_]+)*)(?=\\s|$|[^a-zA-Z0-9_/])", "gm");
+        regexTest = new RegExp("(^|\\s)#(" + escapedTag + "(?:/[a-zA-Z0-9_]+)*)(?=\\s|$|[^a-zA-Z0-9_/])", "m");
     } else {
-        regex = new RegExp("(^|\\s)" + escapedPrefix + "#(" + escapedTag + "(?:/[a-zA-Z0-9_]+)*)(?=\\s|$|[^a-zA-Z0-9_/])", "gm");
+        regexGlobal = new RegExp("(^|\\s)" + escapedPrefix + "#(" + escapedTag + "(?:/[a-zA-Z0-9_]+)*)(?=\\s|$|[^a-zA-Z0-9_/])", "gm");
+        regexTest = new RegExp("(^|\\s)" + escapedPrefix + "#(" + escapedTag + "(?:/[a-zA-Z0-9_]+)*)(?=\\s|$|[^a-zA-Z0-9_/])", "m");
     }
 
     var filesModified = 0;
     var tagsChanged = 0;
-    var markdownFiles = app.vault.getMarkdownFiles();
+    var allFiles = app.vault.getMarkdownFiles();
+    var targetFiles = [];
 
-    for (var file of markdownFiles) {
+    // Filter Step (Batched)
+    var scanFn = async function(file) {
+        var content = await app.vault.cachedRead(file);
+        var parts = splitFrontmatter(content);
+        if (regexTest.test(parts.body)) return file;
+        return null;
+    };
+    var scanResults = await processFilesBatched(allFiles, scanFn, 50);
+    for (var i = 0; i < scanResults.length; i++) {
+        if (scanResults[i]) targetFiles.push(scanResults[i]);
+    }
+
+    // Execution Step
+    var processFn = async function(file) {
         try {
+            var modified = false;
+            var changes = 0;
             await app.vault.process(file, function (content) {
                 var parts = splitFrontmatter(content);
-                var body = parts.body;
                 var count = 0;
-
                 var newBody;
                 if (hide) {
-                    newBody = body.replace(regex, function (match, preceding, tagName) {
+                    newBody = parts.body.replace(regexGlobal, function (match, preceding, tagName) {
                         count++;
                         return preceding + prefix + "#" + tagName;
                     });
                 } else {
-                    newBody = body.replace(regex, function (match, preceding, tagName) {
+                    newBody = parts.body.replace(regexGlobal, function (match, preceding, tagName) {
                         count++;
                         return preceding + "#" + tagName;
                     });
                 }
 
                 if (count > 0) {
-                    filesModified++;
-                    tagsChanged += count;
+                    modified = true;
+                    changes = count;
                     return parts.frontmatter + newBody;
                 }
-                return content; // no change
+                return content;
             });
+            return { modified: modified, changes: changes };
         } catch (e) {
             console.error("Tag Toggler: Error processing file (body) " + file.path, e);
+            return { modified: false, changes: 0 };
+        }
+    };
+
+    var results = await processFilesBatched(targetFiles, processFn, 50);
+    for (var j = 0; j < results.length; j++) {
+        if (results[j].modified) {
+            filesModified++;
+            tagsChanged += results[j].changes;
         }
     }
 
@@ -119,20 +160,37 @@ async function toggleTagInBody(app, tag, hide, prefix) {
 async function toggleTagInFrontmatter(app, tag, hide) {
     var filesModified = 0;
     var tagsChanged = 0;
-    var markdownFiles = app.vault.getMarkdownFiles();
+    var allFiles = app.vault.getMarkdownFiles();
+    var targetFiles = [];
 
-    for (var file of markdownFiles) {
+    // Filter Step (Batched)
+    var scanFn = async function(file) {
+        var content = await app.vault.cachedRead(file);
+        var parts = splitFrontmatter(content);
+        if (!parts.frontmatter) return null;
+        
+        var tagLower = tag.toLowerCase();
+        if (parts.frontmatter.toLowerCase().includes(tagLower)) return file;
+        return null;
+    };
+    var scanResults = await processFilesBatched(allFiles, scanFn, 50);
+    for (var i = 0; i < scanResults.length; i++) {
+        if (scanResults[i]) targetFiles.push(scanResults[i]);
+    }
+
+    // Execution Step
+    var processFn = async function(file) {
         try {
+            var modified = false;
+            var changes = 0;
             await app.fileManager.processFrontMatter(file, function (fm) {
                 if (hide) {
-                    // ── Hide: tags/tag → hidden-tags ──
                     var sourceKey = Array.isArray(fm.tags) || typeof fm.tags === "string" || typeof fm.tags === "number" ? "tags" : (fm.tag != null ? "tag" : null);
-                    if (!sourceKey) return; // no tags property at all
+                    if (!sourceKey) return;
 
                     var srcArr = normaliseTags(fm[sourceKey]);
                     var matchIndices = [];
                     for (var i = 0; i < srcArr.length; i++) {
-                        // Exact match or hierarchical sub-tag match
                         var t = srcArr[i];
                         var tLower = t.toLowerCase();
                         var tagLower = tag.toLowerCase();
@@ -140,22 +198,19 @@ async function toggleTagInFrontmatter(app, tag, hide) {
                             matchIndices.push(i);
                         }
                     }
-                    if (matchIndices.length === 0) return; // tag not found
+                    if (matchIndices.length === 0) return;
 
-                    // Remove matched tags from source
                     var removed = [];
                     for (var j = matchIndices.length - 1; j >= 0; j--) {
                         removed.unshift(srcArr.splice(matchIndices[j], 1)[0]);
                     }
 
-                    // Update source property
                     if (srcArr.length === 0) {
                         delete fm[sourceKey];
                     } else {
                         fm[sourceKey] = srcArr;
                     }
 
-                    // Add to hidden-tags
                     var hiddenArr = normaliseTags(fm["hidden-tags"]);
                     for (var k = 0; k < removed.length; k++) {
                         if (hiddenArr.indexOf(removed[k]) === -1) {
@@ -164,10 +219,9 @@ async function toggleTagInFrontmatter(app, tag, hide) {
                     }
                     fm["hidden-tags"] = hiddenArr;
 
-                    filesModified++;
-                    tagsChanged += removed.length;
+                    modified = true;
+                    changes = removed.length;
                 } else {
-                    // ── Unhide: hidden-tags → tags ──
                     var hiddenArr = normaliseTags(fm["hidden-tags"]);
                     if (hiddenArr.length === 0) return;
 
@@ -182,20 +236,17 @@ async function toggleTagInFrontmatter(app, tag, hide) {
                     }
                     if (matchIndices.length === 0) return;
 
-                    // Remove matched tags from hidden-tags
                     var removed = [];
                     for (var j = matchIndices.length - 1; j >= 0; j--) {
                         removed.unshift(hiddenArr.splice(matchIndices[j], 1)[0]);
                     }
 
-                    // Clean up hidden-tags
                     if (hiddenArr.length === 0) {
                         delete fm["hidden-tags"];
                     } else {
                         fm["hidden-tags"] = hiddenArr;
                     }
 
-                    // Add back to tags
                     var tagsArr = normaliseTags(fm.tags);
                     for (var k = 0; k < removed.length; k++) {
                         if (tagsArr.indexOf(removed[k]) === -1) {
@@ -204,12 +255,22 @@ async function toggleTagInFrontmatter(app, tag, hide) {
                     }
                     fm.tags = tagsArr;
 
-                    filesModified++;
-                    tagsChanged += removed.length;
+                    modified = true;
+                    changes = removed.length;
                 }
             });
+            return { modified: modified, changes: changes };
         } catch (e) {
             console.error("Tag Toggler: Error processing frontmatter " + file.path, e);
+            return { modified: false, changes: 0 };
+        }
+    };
+
+    var results = await processFilesBatched(targetFiles, processFn, 50);
+    for (var j = 0; j < results.length; j++) {
+        if (results[j].modified) {
+            filesModified++;
+            tagsChanged += results[j].changes;
         }
     }
 
@@ -293,38 +354,76 @@ var TagInputSuggest = class extends obsidian.AbstractInputSuggest {
 // ─── Core: Unhide All tags in vault ─────────────────────────────────
 async function unhideAllInVault(app, prefix) {
     var escapedPrefix = escapeRegExp(prefix);
-    var markdownFiles = app.vault.getMarkdownFiles();
+    var allFiles = app.vault.getMarkdownFiles();
     var bodyFiles = 0;
     var bodyTags = 0;
     var fmFiles = 0;
     var fmTags = 0;
 
-    // Body: remove ALL prefix symbols before # tags
-    var bodyRegex = new RegExp("(^|\\s)" + escapedPrefix + "#([a-zA-Z0-9_/]+)", "gm");
-    for (var file of markdownFiles) {
+    var bodyRegexGlobal = new RegExp("(^|\\s)" + escapedPrefix + "#([a-zA-Z0-9_/]+)", "gm");
+    var bodyRegexTest = new RegExp("(^|\\s)" + escapedPrefix + "#([a-zA-Z0-9_/]+)", "m");
+
+    var bodyTargetFiles = [];
+    var fmTargetFiles = [];
+
+    // Filter Step (Batched)
+    var scanFn = async function(file) {
+        var content = await app.vault.cachedRead(file);
+        var parts = splitFrontmatter(content);
+        var bodyMatch = bodyRegexTest.test(parts.body);
+        var fmMatch = !!(parts.frontmatter && parts.frontmatter.includes("hidden-tags:"));
+        if (bodyMatch || fmMatch) {
+            return { file: file, bodyMatch: bodyMatch, fmMatch: fmMatch };
+        }
+        return null;
+    };
+    var scanResults = await processFilesBatched(allFiles, scanFn, 50);
+    for (var i = 0; i < scanResults.length; i++) {
+        if (scanResults[i]) {
+            if (scanResults[i].bodyMatch) bodyTargetFiles.push(scanResults[i].file);
+            if (scanResults[i].fmMatch) fmTargetFiles.push(scanResults[i].file);
+        }
+    }
+
+    // Execution Step: Body
+    var bodyProcessFn = async function(file) {
         try {
+            var modified = false;
+            var changes = 0;
             await app.vault.process(file, function (content) {
                 var parts = splitFrontmatter(content);
                 var count = 0;
-                var newBody = parts.body.replace(bodyRegex, function (match, preceding, tagName) {
+                var newBody = parts.body.replace(bodyRegexGlobal, function (match, preceding, tagName) {
                     count++;
                     return preceding + "#" + tagName;
                 });
                 if (count > 0) {
-                    bodyFiles++;
-                    bodyTags += count;
+                    modified = true;
+                    changes = count;
                     return parts.frontmatter + newBody;
                 }
                 return content;
             });
+            return { modified: modified, changes: changes };
         } catch (e) {
             console.error("Tag Toggler: Error in unhideAll (body) " + file.path, e);
+            return { modified: false, changes: 0 };
+        }
+    };
+
+    var bodyResults = await processFilesBatched(bodyTargetFiles, bodyProcessFn, 50);
+    for (var j = 0; j < bodyResults.length; j++) {
+        if (bodyResults[j].modified) {
+            bodyFiles++;
+            bodyTags += bodyResults[j].changes;
         }
     }
 
-    // Frontmatter: move all hidden-tags back to tags
-    for (var file of markdownFiles) {
+    // Execution Step: Frontmatter
+    var fmProcessFn = async function(file) {
         try {
+            var modified = false;
+            var changes = 0;
             await app.fileManager.processFrontMatter(file, function (fm) {
                 var hiddenArr = normaliseTags(fm["hidden-tags"]);
                 if (hiddenArr.length === 0) return;
@@ -336,12 +435,23 @@ async function unhideAllInVault(app, prefix) {
                     }
                 }
                 fm.tags = tagsArr;
-                fmTags += hiddenArr.length;
-                fmFiles++;
+                
+                modified = true;
+                changes = hiddenArr.length;
                 delete fm["hidden-tags"];
             });
+            return { modified: modified, changes: changes };
         } catch (e) {
             console.error("Tag Toggler: Error in unhideAll (frontmatter) " + file.path, e);
+            return { modified: false, changes: 0 };
+        }
+    };
+
+    var fmResults = await processFilesBatched(fmTargetFiles, fmProcessFn, 50);
+    for (var j = 0; j < fmResults.length; j++) {
+        if (fmResults[j].modified) {
+            fmFiles++;
+            fmTags += fmResults[j].changes;
         }
     }
 
@@ -351,38 +461,76 @@ async function unhideAllInVault(app, prefix) {
 // ─── Core: Hide All tags in vault ──────────────────────────────────
 async function hideAllInVault(app, prefix) {
     var escapedPrefix = escapeRegExp(prefix);
-    var markdownFiles = app.vault.getMarkdownFiles();
+    var allFiles = app.vault.getMarkdownFiles();
     var totalBodyFiles = 0;
     var totalBodyTags = 0;
     var totalFmFiles = 0;
     var totalFmTags = 0;
 
-    // Body: single-pass regex to prefix ALL #tags at once (avoids double-prefixing)
-    var bodyRegex = new RegExp("(^|\\s)#([a-zA-Z0-9_][a-zA-Z0-9_/]*)", "gm");
-    for (var file of markdownFiles) {
+    var bodyRegexGlobal = new RegExp("(^|\\s)#([a-zA-Z0-9_][a-zA-Z0-9_/]*)", "gm");
+    var bodyRegexTest = new RegExp("(^|\\s)#([a-zA-Z0-9_][a-zA-Z0-9_/]*)", "m");
+
+    var bodyTargetFiles = [];
+    var fmTargetFiles = [];
+
+    // Filter Step (Batched)
+    var scanFn = async function(file) {
+        var content = await app.vault.cachedRead(file);
+        var parts = splitFrontmatter(content);
+        var bodyMatch = bodyRegexTest.test(parts.body);
+        var fmMatch = !!(parts.frontmatter && (parts.frontmatter.includes("tags:") || parts.frontmatter.includes("tag:")));
+        if (bodyMatch || fmMatch) {
+            return { file: file, bodyMatch: bodyMatch, fmMatch: fmMatch };
+        }
+        return null;
+    };
+    var scanResults = await processFilesBatched(allFiles, scanFn, 50);
+    for (var i = 0; i < scanResults.length; i++) {
+        if (scanResults[i]) {
+            if (scanResults[i].bodyMatch) bodyTargetFiles.push(scanResults[i].file);
+            if (scanResults[i].fmMatch) fmTargetFiles.push(scanResults[i].file);
+        }
+    }
+
+    // Execution Step: Body
+    var bodyProcessFn = async function(file) {
         try {
+            var modified = false;
+            var changes = 0;
             await app.vault.process(file, function (content) {
                 var parts = splitFrontmatter(content);
                 var count = 0;
-                var newBody = parts.body.replace(bodyRegex, function (match, preceding, tagName) {
+                var newBody = parts.body.replace(bodyRegexGlobal, function (match, preceding, tagName) {
                     count++;
                     return preceding + prefix + "#" + tagName;
                 });
                 if (count > 0) {
-                    totalBodyFiles++;
-                    totalBodyTags += count;
+                    modified = true;
+                    changes = count;
                     return parts.frontmatter + newBody;
                 }
                 return content;
             });
+            return { modified: modified, changes: changes };
         } catch (e) {
             console.error("Tag Toggler: Error in hideAll (body) " + file.path, e);
+            return { modified: false, changes: 0 };
+        }
+    };
+
+    var bodyResults = await processFilesBatched(bodyTargetFiles, bodyProcessFn, 50);
+    for (var j = 0; j < bodyResults.length; j++) {
+        if (bodyResults[j].modified) {
+            totalBodyFiles++;
+            totalBodyTags += bodyResults[j].changes;
         }
     }
 
-    // Frontmatter: move ALL tags to hidden-tags
-    for (var file of markdownFiles) {
+    // Execution Step: Frontmatter
+    var fmProcessFn = async function(file) {
         try {
+            var modified = false;
+            var changes = 0;
             await app.fileManager.processFrontMatter(file, function (fm) {
                 var sourceKey = Array.isArray(fm.tags) || typeof fm.tags === "string" || typeof fm.tags === "number" ? "tags" : (fm.tag != null ? "tag" : null);
                 if (!sourceKey) return;
@@ -397,12 +545,23 @@ async function hideAllInVault(app, prefix) {
                     }
                 }
                 fm["hidden-tags"] = hiddenArr;
-                totalFmTags += srcArr.length;
-                totalFmFiles++;
+                
+                modified = true;
+                changes = srcArr.length;
                 delete fm[sourceKey];
             });
+            return { modified: modified, changes: changes };
         } catch (e) {
             console.error("Tag Toggler: Error in hideAll (frontmatter) " + file.path, e);
+            return { modified: false, changes: 0 };
+        }
+    };
+
+    var fmResults = await processFilesBatched(fmTargetFiles, fmProcessFn, 50);
+    for (var j = 0; j < fmResults.length; j++) {
+        if (fmResults[j].modified) {
+            totalFmFiles++;
+            totalFmTags += fmResults[j].changes;
         }
     }
 
