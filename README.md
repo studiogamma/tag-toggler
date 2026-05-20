@@ -1,12 +1,12 @@
 # Tag Toggler for Obsidian
 
-**Tag Toggler** allows you to dynamically control the tag nodes in your Obsidian Graph View. Unlike search filters, this plugin enables you to hide or unhide tag nodes while keeping the tagged files visible on the graph.
+**Tag Toggler** allows you to dynamically control the tag nodes in Obsidian Graph View. Unlike search filters, this plugin enables you to toggle tag nodes while keeping the tagged files on the graph.
 
 ## ✨ Key Features
 
 * **Toggle Specific Tags**: Target and toggle visibility for individual tags.
-* **Global Controls**: Quickly 'Hide All' or 'Unhide All' tag nodes across your entire vault.
-* **Graph View Optimization**: Clean up your graph by removing distracting tag nodes while keeping the underlying file structure intact.
+* **Global Controls**: 'Hide All' or 'Unhide All' tag nodes across your entire vault.
+* **Data Visualization**: Toggle tag nodes in tag-heavy vaults to customize your graph view exactly the way you want.
 
 
 
@@ -15,7 +15,7 @@ https://github.com/user-attachments/assets/4920d63c-e0fa-46e8-830a-7fa90bc96cdf
 
 
 ## Update (v 1.0 -> v 1.1)
-The backend logic has been optimized to handle large-scale vaults. The performance increased 3x faster (for vault with 1000 files).
+The backend logic has been optimized for better performance. In testing, performance is now 3x faster for vaults with 1,000+ files.
 
 ## ⚙️ How It Works
 
