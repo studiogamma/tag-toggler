@@ -16,13 +16,20 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Attest build provenance
-        uses: actions/attest-build-provenance@v2
+      - name: Generate artifact attestation for main.js
+        uses: actions/attest@v4
         with:
-          subject-path: |
-            main.js
-            manifest.json
-            styles.css
+          subject-path: main.js
+
+      - name: Generate artifact attestation for manifest.json
+        uses: actions/attest@v4
+        with:
+          subject-path: manifest.json
+
+      - name: Generate artifact attestation for styles.css
+        uses: actions/attest@v4
+        with:
+          subject-path: styles.css
 
       - name: Create Release and Upload Assets
         uses: softprops/action-gh-release@v2
